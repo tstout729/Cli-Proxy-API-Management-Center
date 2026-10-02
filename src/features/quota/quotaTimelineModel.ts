@@ -11,6 +11,7 @@
  */
 
 import { DAY_MS, HOUR_MS } from '@/utils/time/durations';
+import { pacificDayStart, pacificParts, shiftPacificDay } from '@/utils/time/pacific';
 import type { QuotaProviderType } from './providers/types';
 
 export { DAY_MS, HOUR_MS };
@@ -104,18 +105,14 @@ export function windowsIn(
   return out;
 }
 
-/** Start of the local day containing `ms`. */
+/** Start of the Pacific day containing `ms`. */
 export function startOfDay(ms: number): number {
-  const d = new Date(ms);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  return pacificDayStart(ms);
 }
 
-/** Start of the local week (Sunday) containing `ms`. */
+/** Start of the Pacific week (Sunday) containing `ms`. */
 export function startOfWeek(ms: number): number {
-  const d = new Date(startOfDay(ms));
-  d.setDate(d.getDate() - d.getDay());
-  return d.getTime();
+  return shiftPacificDay(ms, -pacificParts(ms).weekday);
 }
 
 /**
@@ -132,14 +129,9 @@ export function timelineSpan(
   now: number
 ): { startMs: number; endMs: number; days: number } {
   const days = TIMELINE_SPAN_DAYS[mode];
-  const base = new Date(mode === 'weekly' ? startOfWeek(now) : startOfDay(now));
-  base.setDate(base.getDate() + offset * (mode === 'weekly' ? 7 : 1));
-  const startMs = base.getTime();
-
-  const end = new Date(startMs);
-  end.setDate(end.getDate() + days);
-
-  return { startMs, endMs: end.getTime(), days };
+  const base = mode === 'weekly' ? startOfWeek(now) : startOfDay(now);
+  const startMs = shiftPacificDay(base, offset * (mode === 'weekly' ? 7 : 1));
+  return { startMs, endMs: shiftPacificDay(startMs, days), days };
 }
 
 /**

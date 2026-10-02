@@ -13,30 +13,34 @@ describe('visual config weighted routing strategy', () => {
     expect(parseRoutingStrategy('fillfirst')).toBe('fill-first');
     expect(parseRoutingStrategy('ff')).toBe('fill-first');
     expect(parseRoutingStrategy(undefined)).toBe('round-robin');
+    expect(parseRoutingStrategy('weekly-reset-first')).toBe('weekly-reset-first');
   });
 
-  test('writes weighted-round-robin without coercing it to round-robin', () => {
-    function Harness() {
-      const visualConfig = useVisualConfig();
-      const [phase, setPhase] = useState(0);
+  test.each(['weighted-round-robin', 'weekly-reset-first'] as const)(
+    'preserves %s in YAML',
+    (strategy) => {
+      function Harness() {
+        const visualConfig = useVisualConfig();
+        const [phase, setPhase] = useState(0);
 
-      if (phase === 0) {
-        visualConfig.setVisualValues({ routingStrategy: 'weighted-round-robin' });
-        setPhase(1);
-      } else {
-        return createElement(
-          'pre',
-          null,
-          visualConfig.applyVisualChangesToYaml('routing:\n  strategy: round-robin\n')
-        );
+        if (phase === 0) {
+          visualConfig.setVisualValues({ routingStrategy: strategy });
+          setPhase(1);
+        } else {
+          return createElement(
+            'pre',
+            null,
+            visualConfig.applyVisualChangesToYaml('routing:\n  strategy: round-robin\n')
+          );
+        }
+
+        return null;
       }
 
-      return null;
+      const markup = renderToStaticMarkup(createElement(Harness));
+      const result = markup.slice('<pre>'.length, -'</pre>'.length);
+
+      expect(parseYaml(result)).toEqual({ routing: { strategy } });
     }
-
-    const markup = renderToStaticMarkup(createElement(Harness));
-    const result = markup.slice('<pre>'.length, -'</pre>'.length);
-
-    expect(parseYaml(result)).toEqual({ routing: { strategy: 'weighted-round-robin' } });
-  });
+  );
 });

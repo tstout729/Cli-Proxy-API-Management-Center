@@ -13,6 +13,7 @@ import {
   windowsIn,
 } from '../src/features/quota/quotaTimelineModel';
 import type { TimelineLane } from '../src/features/quota/quotaTimelineModel';
+import { pacificParts } from '../src/utils/time/pacific';
 
 const at = (y: number, m: number, d: number, h = 0, min = 0) => new Date(y, m, d, h, min).getTime();
 
@@ -61,18 +62,18 @@ describe('windowsIn', () => {
 });
 
 describe('span boundaries', () => {
-  test('startOfDay and startOfWeek land on local midnight', () => {
+  test('startOfDay and startOfWeek land on Pacific midnight', () => {
     const mid = at(2026, 6, 29, 14, 37);
-    expect(new Date(startOfDay(mid)).getHours()).toBe(0);
-    expect(new Date(startOfWeek(mid)).getDay()).toBe(0);
-    expect(new Date(startOfWeek(mid)).getHours()).toBe(0);
+    expect(pacificParts(startOfDay(mid)).hour).toBe(0);
+    expect(pacificParts(startOfWeek(mid)).weekday).toBe(0);
+    expect(pacificParts(startOfWeek(mid)).hour).toBe(0);
   });
 
   test('weekly span is a fortnight from the containing Sunday', () => {
     const now = at(2026, 6, 29, 14, 0); // a Wednesday
     const span = timelineSpan('weekly', 0, now);
 
-    expect(new Date(span.startMs).getDay()).toBe(0);
+    expect(pacificParts(span.startMs).weekday).toBe(0);
     expect(span.days).toBe(14);
     expect(span.startMs).toBeLessThanOrEqual(now);
     expect(span.endMs).toBeGreaterThan(now);
@@ -93,8 +94,8 @@ describe('span boundaries', () => {
   test('spans a whole number of days even across a DST transition', () => {
     // US DST springs forward 2026-03-08; a fixed +14*DAY_MS would land at 23:00.
     const span = timelineSpan('weekly', 0, at(2026, 2, 10, 12));
-    expect(new Date(span.startMs).getHours()).toBe(0);
-    expect(new Date(span.endMs).getHours()).toBe(0);
+    expect(pacificParts(span.startMs).hour).toBe(0);
+    expect(pacificParts(span.endMs).hour).toBe(0);
   });
 });
 
