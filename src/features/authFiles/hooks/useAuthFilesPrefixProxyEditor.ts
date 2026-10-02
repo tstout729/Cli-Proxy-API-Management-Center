@@ -359,7 +359,7 @@ export const buildAuthFileFieldsPatch = (
   }
 
   if (supportsAuthFileWebsockets(editor.providerKey) && editor.websocketsTouched) {
-    const originalWebsockets = readAuthFileWebsockets(original);
+    const originalWebsockets = readAuthFileWebsockets(original, editor.providerKey);
     const nextWebsockets = Boolean(editor.websockets);
     if (nextWebsockets !== originalWebsockets) {
       patch.websockets = nextWebsockets;
@@ -587,7 +587,7 @@ export function useAuthFilesPrefixProxyEditor(
       const weight = readCredentialWeight(json.weight);
       const disableCooling = readAuthFileDisableCooling(json);
       const websockets = supportsAuthFileWebsockets(providerKey)
-        ? readAuthFileWebsockets(json)
+        ? readAuthFileWebsockets(json, providerKey)
         : false;
       const usingApi = supportsAuthFileUsingApi(providerKey) ? readAuthFileUsingApi(json) : false;
       const note = typeof json.note === 'string' ? json.note : '';

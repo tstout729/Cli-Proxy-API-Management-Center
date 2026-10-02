@@ -72,6 +72,8 @@ export function DashboardPage() {
     const raw = config?.routingStrategy?.trim() ?? '';
     if (!raw) return DASH;
     if (raw === 'round-robin') return t('basic_settings.routing_strategy_round_robin');
+    if (raw === 'weekly-reset-first')
+      return t('basic_settings.routing_strategy_weekly_reset_first');
     if (raw === 'weighted-round-robin') {
       return t('basic_settings.routing_strategy_weighted_round_robin');
     }

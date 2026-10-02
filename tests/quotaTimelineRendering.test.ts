@@ -148,7 +148,7 @@ describe('QuotaTimeline rendering', () => {
     );
 
     expect(markup).toContain('role="img"');
-    expect(markup).toContain('08/03 12:00');
+    expect(markup).toContain('08/03 05:00 PT');
   });
 
   test('stays hidden before any credential exposes a usable quota window', () => {

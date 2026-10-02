@@ -45,6 +45,13 @@
   min-width: 0;
 }
 
+.viewSelect {
+  flex: 0 0 130px !important;
+  button {
+    height: 34px;
+  }
+}
+
 .search {
   position: relative;
   display: flex;

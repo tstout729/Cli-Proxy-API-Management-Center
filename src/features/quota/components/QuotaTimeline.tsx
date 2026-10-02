@@ -31,17 +31,18 @@ import type { TimelineLane, TimelineMode } from '../quotaTimelineModel';
 import type { QuotaFileEntry } from '../logic';
 import type { QuotaCardState } from '../providers';
 import styles from './QuotaTimeline.module.scss';
+import { pacificParts, pacificDayStart, shiftPacificDay } from '@/utils/time/pacific';
 
 const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
 const pad = (value: number) => String(value).padStart(2, '0');
 const formatDay = (ms: number) => {
-  const d = new Date(ms);
-  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+  const d = pacificParts(ms);
+  return `${pad(d.month)}/${pad(d.day)}`;
 };
 const formatTime = (ms: number) => {
-  const d = new Date(ms);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const d = pacificParts(ms);
+  return `${pad(d.hour)}:${pad(d.minute)} PT`;
 };
 
 export interface QuotaTimelineProps {
@@ -131,22 +132,23 @@ export function QuotaTimeline({
   const cells = useMemo(() => {
     const zoomed = mode === 'session';
     const count = zoomed ? span.days * 4 : span.days;
-    const cellMs = (span.endMs - span.startMs) / count;
-    const todayStart = new Date(now).setHours(0, 0, 0, 0);
+    const todayStart = pacificDayStart(now);
 
     return Array.from({ length: count }, (_, index) => {
-      const at = span.startMs + index * cellMs;
-      const date = new Date(at);
-      const isDayStart = !zoomed || date.getHours() === 0;
+      const at = zoomed
+        ? shiftPacificDay(span.startMs, Math.floor(index / 4), (index % 4) * 6)
+        : shiftPacificDay(span.startMs, index);
+      const date = pacificParts(at);
+      const isDayStart = !zoomed || date.hour === 0;
       return {
         at,
         isDayStart,
-        isToday: new Date(at).setHours(0, 0, 0, 0) === todayStart,
-        isWeekend: date.getDay() === 0 || date.getDay() === 6,
-        weekday: t(`quota_management.weekday_${WEEKDAY_KEYS[date.getDay()]}`, {
-          defaultValue: WEEKDAY_KEYS[date.getDay()],
+        isToday: pacificDayStart(at) === todayStart,
+        isWeekend: date.weekday === 0 || date.weekday === 6,
+        weekday: t(`quota_management.weekday_${WEEKDAY_KEYS[date.weekday]}`, {
+          defaultValue: WEEKDAY_KEYS[date.weekday],
         }),
-        label: isDayStart ? formatDay(at) : `${pad(date.getHours())}:00`,
+        label: isDayStart ? formatDay(at) : `${pad(date.hour)}:00 PT`,
       };
     });
   }, [mode, span, now, t]);
@@ -357,8 +359,7 @@ function Lane({ lane, span, now, mode, cells, nowPercent, resolvedTheme }: LaneP
         <div className={styles.laneLimits}>
           {lane.limits.map((limit) => (
             <span key={limit.label} className={styles.laneLimit}>
-              {lane.provider === 'meta' ? t(limit.label) : limit.label}{' '}
-              <b>{limit.remaining}%</b>
+              {lane.provider === 'meta' ? t(limit.label) : limit.label} <b>{limit.remaining}%</b>
             </span>
           ))}
         </div>

@@ -25,6 +25,9 @@ import { getQuotaCacheKey } from '@/utils/quota/identity';
 import { ProviderTabs } from '@/features/authFiles/components/ProviderTabs';
 import { QuotaHeader } from './components/QuotaHeader';
 import { QuotaCard } from './components/QuotaCard';
+import { QuotaLedger } from './components/QuotaLedger';
+import { QuotaRoutingPolicy } from './components/QuotaRoutingPolicy';
+import { maskQuotaIdentity, weeklyResetFor } from './ledgerModel';
 import { QuotaTimeline } from './components/QuotaTimeline';
 import {
   CARD_ENTRANCE_BUDGET_MS,
@@ -60,7 +63,6 @@ const SKELETON_CARD_COUNT = 6;
  * Existing providers display filenames; Devin's card and timeline share an
  * identity-aware display label. Keep the filename fallback stable for memoization.
  */
-const displayNameFor = (name: string) => name;
 
 export function QuotaPage() {
   const { t } = useTranslation();
@@ -72,7 +74,13 @@ export function QuotaPage() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState<QuotaTabId>(() => readQuotaUiState()?.tab ?? 'all');
   const [sortMode, setSortMode] = useState<QuotaSortMode>(
-    () => readQuotaUiState()?.sortMode ?? 'default'
+    () => readQuotaUiState()?.sortMode ?? 'weekly'
+  );
+  const [view, setView] = useState<'ledger' | 'cards'>(() => readQuotaUiState()?.view ?? 'ledger');
+  const [showEmails, setShowEmails] = useState(false);
+  const displayNameFor = useCallback(
+    (name: string) => (showEmails ? name : maskQuotaIdentity(name)),
+    [showEmails]
   );
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -173,8 +181,11 @@ export function QuotaPage() {
   }, []);
 
   const resolveNextRecovery = useCallback(
-    (entry: QuotaFileEntry) => nextRecoveryMs(entry.type, getQuota(entry), sortNow),
-    [getQuota, sortNow]
+    (entry: QuotaFileEntry) =>
+      sortMode === 'weekly'
+        ? weeklyResetFor(entry, getQuota(entry), sortNow)
+        : nextRecoveryMs(entry.type, getQuota(entry), sortNow),
+    [getQuota, sortNow, sortMode]
   );
   // 排序在分页之前：否则「最快恢复」只在当前页内成立。
   const sortedEntries = useMemo(
@@ -321,6 +332,8 @@ export function QuotaPage() {
         refreshing={loading || batchLoading}
         disableControls={disableControls}
         onRefreshAll={handleRefreshAll}
+        showEmails={showEmails}
+        onToggleEmails={() => setShowEmails((value) => !value)}
       />
 
       <section className={styles.workbench}>
@@ -333,7 +346,25 @@ export function QuotaPage() {
             resolvedTheme={resolvedTheme}
             onChange={handleTabChange}
           />
+          <div className={styles.viewSelect}>
+            <Select
+              value={view}
+              options={[
+                { value: 'ledger', label: t('quota_management.view_ledger') },
+                { value: 'cards', label: t('quota_management.view_cards') },
+              ]}
+              ariaLabel={t('quota_management.view_label')}
+              size="sm"
+              onChange={(value) => {
+                const next = value as 'ledger' | 'cards';
+                setView(next);
+                writeQuotaUiState({ view: next });
+              }}
+            />
+          </div>
         </div>
+
+        <QuotaRoutingPolicy disabled={disableControls} />
 
         <div className={styles.toolbar}>
           <div className={styles.search}>
@@ -413,6 +444,16 @@ export function QuotaPage() {
               )
             }
           />
+        ) : view === 'ledger' ? (
+          <QuotaLedger
+            entries={pageItems}
+            summaryEntries={filteredEntries}
+            quotaFor={getQuota}
+            resolvedTheme={resolvedTheme}
+            showEmails={showEmails}
+            canRefresh={canUseActions}
+            onRefresh={(entry) => void refreshQuota(entry.file, QUOTA_ADAPTERS[entry.type])}
+          />
         ) : (
           <div className={styles.grid}>
             {pageItems.map((entry, index) => (
@@ -421,6 +462,7 @@ export function QuotaPage() {
                 entry={entry}
                 quota={getQuota(entry)}
                 resolvedTheme={resolvedTheme}
+                showEmails={showEmails}
                 canRefresh={canUseActions && !entry.file.disabled}
                 resetting={resettingQuotaName === getQuotaCacheKey(entry.file)}
                 entranceDelayMs={cardEntranceDelay(index)}

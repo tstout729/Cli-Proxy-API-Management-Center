@@ -98,7 +98,7 @@ export function sortQuotaEntries(
   mode: QuotaSortMode,
   resolveNextRecoveryMs: (entry: QuotaFileEntry) => number | null
 ): QuotaFileEntry[] {
-  if (mode !== 'soonest') return [...entries];
+  if (mode === 'default') return [...entries];
 
   // Decorate once — resolving pokes at provider-shaped state per entry.
   return entries

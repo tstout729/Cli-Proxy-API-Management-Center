@@ -17,7 +17,7 @@ export type QuotaTabId = 'all' | QuotaProviderType;
 export const QUOTA_PAGE_SIZE = 20;
 
 /** 卡片排序：默认 = provider 分组序；soonest = 最快恢复优先。 */
-export const QUOTA_SORT_MODES = ['default', 'soonest'] as const;
+export const QUOTA_SORT_MODES = ['default', 'weekly', 'soonest'] as const;
 
 export type QuotaSortMode = (typeof QUOTA_SORT_MODES)[number];
 
