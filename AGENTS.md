@@ -1,5 +1,9 @@
 # Repository Guidelines
 
+## Fork
+
+This checkout is Trevor's fork, https://github.com/tstout729/Cli-Proxy-API-Management-Center, of `router-for-me/Cli-Proxy-API-Management-Center`. Open PRs on the fork. `scripts/install-custom-macos.sh` in `../CLIProxyAPI` builds this console into Trevor's custom proxy.
+
 ## Project Scope & Structure
 
 This is a React 19 + TypeScript + Vite management frontend for CLI Proxy API, not the proxy itself. It exclusively uses the backend v8 Management API under `/v8/management` and the v8 configuration layout; do not add v0 fallbacks or legacy config adapters. Plugin resources and custom HTTP extensions are exceptions: preserve their backend-declared paths.
@@ -66,4 +70,4 @@ Never commit real management keys, provider credentials, auth files, or other se
 
 Use Conventional Commits, such as `feat(providers): add a provider` or `fix(auth-files): preserve disabled actions`. Keep changes focused. Pull requests should include a summary, linked issue when applicable, backend version/reproduction details for integration work, UI screenshots or notes when relevant, and verification results.
 
-Maintain shared repository guidance in `AGENTS.md`. When updating it, synchronize the local `CLAUDE.md` to identical content if present; `CLAUDE.md` is currently ignored and untracked, so shared guidance must not depend on it. Keep guidance aligned with source and configuration rather than duplicating long implementation details.
+Maintain shared repository guidance in `AGENTS.md`. `CLAUDE.md` is one line, `@AGENTS.md`. Keep guidance aligned with source and configuration rather than duplicating long implementation details.
