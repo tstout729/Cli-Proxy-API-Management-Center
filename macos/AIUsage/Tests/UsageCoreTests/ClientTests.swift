@@ -76,7 +76,7 @@ final class ClientTests: XCTestCase, @unchecked Sendable {
     func configuration() throws -> ConnectionConfiguration {
         try ConnectionConfiguration(baseURL: "http://127.0.0.1:8318", keyPath: "/synthetic-test-only")
     }
-    func engine(_ transport: StubTransport) throws -> RefreshEngine {
+    private func engine(_ transport: StubTransport) throws -> RefreshEngine {
         try RefreshEngine(configuration: configuration(), transport: transport, keyLoader: { _ in "synthetic-management-only" })
     }
     func inventory(_ indices: [String]) throws -> HTTPResponse {
