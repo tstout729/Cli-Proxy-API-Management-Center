@@ -36,6 +36,8 @@ From everyday configuration to troubleshooting, keep the essentials close at han
 
 ## Quick start
 
+For a native macOS menu bar view of account limits, see [AI Usage](macos/AIUsage/README.md). It shows five-hour and weekly usage, Pacific reset times, login failures and available reset counts through the same proxy's v8 Management API.
+
 The UI is bundled with [CLI Proxy API](https://github.com/router-for-me/CLIProxyAPI). No separate frontend deployment is needed for the standard setup.
 
 1. Start your CLI Proxy API service.

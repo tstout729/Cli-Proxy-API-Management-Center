@@ -60,9 +60,14 @@ describe('Devin quota UI integration', () => {
   });
 
   test('renders both remaining meters, independent resets and plan without observation time', () => {
-    const markup = renderToStaticMarkup(
-      createElement(DevinQuotaBody, { quota: snapshot(), classes })
-    );
+    // Keep calendar-date assertions in the same local timezone as the rendered labels.
+    const quota = snapshot();
+    quota.windows = quota.windows.map((window) => ({
+      ...window,
+      resetAtMs: new Date(2099, 0, window.id === 'daily' ? 2 : 8, 12).getTime(),
+    }));
+    quota.planEndMs = new Date(2099, 0, 3, 12).getTime();
+    const markup = renderToStaticMarkup(createElement(DevinQuotaBody, { quota, classes }));
     expect(markup).toContain(i18n.t('devin_quota.daily'));
     expect(markup).toContain(i18n.t('devin_quota.weekly'));
     expect(markup.match(/role="meter"/g)).toHaveLength(2);

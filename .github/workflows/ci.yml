@@ -8,6 +8,19 @@ on:
       - dev
 
 jobs:
+  native-usage:
+    name: macOS usage app
+    # ARM hosted runners can exhaust capacity before a job starts.
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test native usage app
+        working-directory: macos/AIUsage
+        run: swift test
+      - name: Package and verify app signature
+        working-directory: macos/AIUsage
+        run: ./scripts/package-app.sh
+
   verify:
     runs-on: ubuntu-latest
 
