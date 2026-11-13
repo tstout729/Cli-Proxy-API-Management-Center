@@ -10,7 +10,8 @@ on:
 jobs:
   native-usage:
     name: macOS usage app
-    runs-on: macos-latest
+    # ARM hosted runners can exhaust capacity before a job starts.
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - name: Test native usage app
