@@ -8,6 +8,18 @@ on:
       - dev
 
 jobs:
+  native-usage:
+    name: macOS usage app
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test native usage app
+        working-directory: macos/AIUsage
+        run: swift test
+      - name: Package and verify app signature
+        working-directory: macos/AIUsage
+        run: ./scripts/package-app.sh
+
   verify:
     runs-on: ubuntu-latest
 

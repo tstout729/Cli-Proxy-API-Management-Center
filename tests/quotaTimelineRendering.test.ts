@@ -139,8 +139,8 @@ describe('QuotaTimeline rendering', () => {
             {
               id: 'credit-1',
               status: 'available',
-              grantedAt: '2026-07-20T12:00:00Z',
-              expiresAt: '2026-08-03T12:00:00Z',
+              grantedAt: new Date(2026, 6, 20, 12).toISOString(),
+              expiresAt: new Date(2026, 7, 3, 12).toISOString(),
             },
           ],
         }),
