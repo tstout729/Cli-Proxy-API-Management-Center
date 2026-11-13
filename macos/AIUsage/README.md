@@ -1,6 +1,6 @@
 # AI Usage
 
-A native macOS menu bar app showing every Claude and Codex account in the shared CLI proxy. It shows used percentages, five-hour and weekly limits, optional model limits, Pacific reset times, and reported reset credits. Login failures, exhausted limits, missing data and stale readings have separate states. It refreshes every five minutes and on demand.
+A native macOS menu bar app showing every Claude and Codex account in the shared CLI proxy. It shows used percentages, five-hour and weekly limits, optional model limits, Pacific reset times, and reported reset credits. Login failures, exhausted limits, missing data and stale readings have separate states. Compact rows compare five-hour and weekly usage side by side, with provider filters and expandable account details. It refreshes every five minutes and on demand.
 
 The app uses Swift 6, SwiftUI, AppKit and Foundation, with no external dependencies. It requires macOS 14 or later. The menu bar item uses a chart symbol; click it to open the account panel.
 

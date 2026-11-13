@@ -87,91 +87,138 @@ final class UsageStore: ObservableObject {
     }
 }
 
-@MainActor
-struct UsagePanel: View {
-    @ObservedObject var store: UsageStore
-    var capture = false
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { context in
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                Divider()
-                if capture {
-                    accountContent(now: context.date)
-                } else {
-                    ScrollView { accountContent(now: context.date) }
-                        .frame(height: 540)
-                }
-                Divider()
-                HStack {
-                    Text("Auto-refresh every 5 min · Pacific time").font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Quit") { NSApplication.shared.terminate(nil) }
-                        .keyboardShortcut("q")
-                }.padding(12)
-            }
-            .frame(width: 460)
-            .background(.background)
-        }
-    }
-
-    private func accountContent(now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if let failure = store.snapshot.connectionFailure {
-                Label(failure.message, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
-                    .font(.callout)
-            }
-            if store.snapshot.accounts.isEmpty {
-                ContentUnavailableView("No accounts loaded", systemImage: "person.crop.circle.badge.questionmark",
-                                       description: Text(store.snapshot.connectionFailure == nil
-                                            ? "The proxy reported no Claude or Codex accounts."
-                                            : "Check the local proxy connection and management key file, then refresh."))
-            }
-            ForEach(Provider.allCases, id: \.self) { provider in
-                let accounts = store.snapshot.accounts.filter { $0.credential.provider == provider }
-                if !accounts.isEmpty {
-                    HStack {
-                        Text(provider.title).font(.title3.bold())
-                        Text("\(accounts.count) accounts").foregroundStyle(.secondary).font(.caption)
-                    }
-                    ForEach(accounts) { account in
-                        AccountCard(account: account, now: now)
-                    }
-                }
-            }
-        }
-        .padding(16)
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("AI Usage").font(.title2.bold())
-                if store.demo { Text("DEMO").font(.caption.bold()).foregroundStyle(.secondary) }
-                Spacer()
-                if store.refreshing { ProgressView().controlSize(.small).accessibilityLabel("Refreshing usage") }
-                Button("Refresh") { Task { await store.refresh() } }
-                    .disabled(store.refreshing)
-                    .keyboardShortcut("r")
-                    .help("Refresh account usage")
-            }
-            if let date = store.snapshot.attemptedAt {
-                Text("Last attempt: \(DisplayTime.absolute(date))").font(.caption).foregroundStyle(.secondary)
-            } else {
-                Text(store.refreshing ? "Loading usage…" : "Usage has not been refreshed")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            if store.demo { Text("Synthetic accounts · no network access").font(.caption).foregroundStyle(.secondary) }
-        }.padding(16)
+private enum AccountFilter: String, CaseIterable {
+    case all = "All accounts", claude = "Claude", codex = "Codex"
+    func includes(_ account: AccountState) -> Bool {
+        self == .all || account.credential.provider.rawValue == rawValue.lowercased()
     }
 }
 
 @MainActor
-struct AccountCard: View {
+struct UsagePanel: View {
+    @ObservedObject var store: UsageStore
+    var capture = false
+    @State private var filter = AccountFilter.all
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            VStack(alignment: .leading, spacing: 0) {
+                header(now: context.date)
+                filterBar
+                HStack(spacing: 12) {
+                    Text("ACCOUNT").frame(maxWidth: .infinity, alignment: .leading)
+                    Text("5-HOUR USED").frame(width: 118, alignment: .leading)
+                    Text("WEEKLY USED").frame(width: 118, alignment: .leading)
+                    Spacer().frame(width: 16)
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 20).padding(.vertical, 10)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+                Divider()
+                if capture {
+                    accountContent(now: context.date)
+                } else {
+                    ScrollView { accountContent(now: context.date) }.frame(height: 440)
+                }
+                Divider()
+                HStack(spacing: 6) {
+                    Circle().fill(store.snapshot.connectionFailure == nil ? Color.green : Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text("Shared team pool").font(.caption)
+                    Text("· Pacific time · Refreshes every 5 min")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Quit") { NSApplication.shared.terminate(nil) }
+                        .buttonStyle(.plain).font(.caption).foregroundStyle(.secondary)
+                        .keyboardShortcut("q")
+                }.padding(.horizontal, 20).padding(.vertical, 12)
+            }
+            .frame(width: 620)
+            .background(.background)
+        }
+    }
+
+    private func header(now: Date) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("AI Usage").font(.system(size: 21, weight: .bold))
+                if store.demo { Text("DEMO").font(.caption.bold()).foregroundStyle(.secondary) }
+                Spacer()
+                if store.refreshing { ProgressView().controlSize(.small).accessibilityLabel("Refreshing usage") }
+                Button { Task { await store.refresh() } } label: {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 14, weight: .medium))
+                }
+                .buttonStyle(.plain).disabled(store.refreshing)
+                .accessibilityLabel("Refresh usage").help("Refresh usage (⌘R)")
+                .keyboardShortcut("r")
+            }
+            HStack(spacing: 18) {
+                summary("Accounts", value: store.snapshot.accounts.count, color: .primary)
+                summary("Reporting", value: store.snapshot.usageSuccesses, color: .blue)
+                summary("At limit", value: store.snapshot.accounts.filter { $0.status(at: now) == .exhausted }.count, color: .orange)
+                summary("Sign-in needed", value: store.snapshot.accounts.filter { $0.status(at: now) == .loginNeeded }.count, color: .red)
+                Spacer(minLength: 0)
+            }
+            if let failure = store.snapshot.connectionFailure {
+                Label(failure.message, systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange)
+            } else if let date = store.snapshot.attemptedAt {
+                Text(store.demo ? "Synthetic preview · no network access" : "Updated \(DisplayTime.absolute(date))")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text(store.refreshing ? "Connecting to the team pool…" : "Waiting for first refresh")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }.padding(20)
+    }
+
+    private func summary(_ title: String, value: Int, color: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text("\(value)").font(.system(size: 18, weight: .semibold, design: .rounded)).foregroundStyle(color)
+            Text(title).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var filterBar: some View {
+        HStack(spacing: 4) {
+            ForEach(AccountFilter.allCases, id: \.self) { item in
+                Button { filter = item } label: {
+                    Text(item.rawValue).font(.system(size: 12, weight: filter == item ? .semibold : .regular))
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(filter == item ? Color.accentColor.opacity(0.12) : .clear,
+                                    in: RoundedRectangle(cornerRadius: 7))
+                        .foregroundStyle(filter == item ? Color.accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(filter == item ? .isSelected : [])
+            }
+            Spacer()
+        }.padding(.horizontal, 16).padding(.bottom, 12)
+    }
+
+    private func accountContent(now: Date) -> some View {
+        VStack(spacing: 0) {
+            if store.snapshot.accounts.isEmpty {
+                ContentUnavailableView("No accounts loaded", systemImage: "person.crop.circle.badge.questionmark",
+                    description: Text(store.snapshot.connectionFailure == nil
+                        ? "The proxy reported no Claude or Codex accounts."
+                        : "Check the proxy connection and management key, then refresh."))
+                    .padding(24)
+            }
+            ForEach(store.snapshot.accounts.filter { filter.includes($0) }) { account in
+                AccountRow(account: account, now: now)
+                Divider().padding(.horizontal, 20)
+            }
+        }
+    }
+}
+
+@MainActor
+struct AccountRow: View {
     let account: AccountState
     let now: Date
-    @State private var showDetails = false
+    @State private var expanded = false
     private var status: AccountStatus { account.status(at: now) }
     private var historical: Bool {
         account.isStale(at: now) || account.failure != nil || account.credential.loginNeeded || account.credential.disabled
@@ -180,105 +227,121 @@ struct AccountCard: View {
         switch status {
         case .loginNeeded, .exhausted: .red
         case .stale, .modelLimited, .unavailable, .connectionError: .orange
-        case .reported: .primary
+        case .reported: .green
         case .unknown, .disabled: .secondary
         }
     }
+    private var statusLabel: String {
+        switch status {
+        case .reported: account.credential.provider.title
+        case .unknown: "\(account.credential.provider.title) · Partial data"
+        default: "\(account.credential.provider.title) · \(status.rawValue)"
+        }
+    }
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(account.credential.label).font(.headline).lineLimit(2).textSelection(.enabled)
-                Spacer(minLength: 8)
-                Text(status.rawValue).font(.caption.bold()).foregroundStyle(color)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-            if historical, account.reading != nil {
-                Label("Previous reading · current capacity unknown", systemImage: "clock.badge.exclamationmark")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            if let failure = account.failure {
-                Text(failure.message).font(.caption).foregroundStyle(.secondary)
-            }
-            if let reading = account.reading {
-                ForEach(reading.windows.filter(\.isOverall)) { window in
-                    WindowRow(window: window, now: now, historical: historical)
-                }
-                let extra = reading.windows.filter { !$0.isOverall }
-                if !extra.isEmpty || !reading.limitedScopes.isEmpty {
-                    DisclosureGroup("Model-specific limits", isExpanded: $showDetails) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(extra) { window in WindowRow(window: window, now: now, historical: historical) }
-                            if !reading.limitedScopes.isEmpty {
-                                Text("Reported limit reached: \(reading.limitedScopes.joined(separator: ", "))")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                        }.padding(.top, 8)
-                    }.font(.caption)
-                }
-                if let resets = reading.resets {
-                    let expired = resets.validUntil.map { $0 <= now } ?? false
-                    let qualifier = historical || expired ? "Last reported reset counts" : "Reset counts"
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(qualifier).font(.caption.bold())
-                        if let available = resets.available { Text("\(available) available") }
-                        if let usable = resets.usableNow { Text("\(usable) applicable now\(historical || expired ? " at last update" : "")") }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(account.credential.label).font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+                    HStack(spacing: 4) {
+                        Circle().fill(color).frame(width: 5, height: 5)
+                        Text(statusLabel).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
                     }
-                    .font(.caption).foregroundStyle(.secondary)
-                    .accessibilityElement(children: .combine)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                compactMeter(.fiveHour)
+                compactMeter(.weekly)
+                Button { expanded.toggle() } label: {
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                        .frame(width: 16, height: 28)
                 }
-                Text("Updated: \(DisplayTime.absolute(reading.fetchedAt))")
-                    .font(.caption2).foregroundStyle(.secondary)
-            } else {
-                ForEach(["5-hour", "Weekly"], id: \.self) { label in
-                    HStack { Text(label); Spacer(); Text("Not reported") }
-                        .font(.caption).foregroundStyle(.secondary)
+                .buttonStyle(.plain)
+                .accessibilityLabel(expanded ? "Hide account details" : "Show account details")
+                .accessibilityValue(expanded ? "Expanded" : "Collapsed")
+            }
+            if expanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    if historical, account.reading != nil {
+                        Label("Previous reading · current capacity unknown", systemImage: "clock.badge.exclamationmark")
+                            .foregroundStyle(.orange)
+                    }
+                    if let failure = account.failure { Text(failure.message).foregroundStyle(.secondary) }
+                    if let reading = account.reading {
+                        ForEach(reading.windows) { window in
+                            HStack {
+                                Text(window.label).frame(width: 130, alignment: .leading)
+                                Text(window.usedPercent.map { String(format: "%.1f%% used", $0) } ?? "Not reported")
+                                    .frame(width: 90, alignment: .leading)
+                                Text(window.resetAt.map { DisplayTime.absolute($0) } ?? "Reset not reported")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        if !reading.limitedScopes.isEmpty {
+                            Text("Model limit reached: \(reading.limitedScopes.joined(separator: ", "))")
+                        }
+                        if let resets = reading.resets {
+                            let expired = resets.validUntil.map { $0 <= now } ?? false
+                            HStack(spacing: 12) {
+                                Text(historical || expired ? "Previous reset counts" : "Reset credits").fontWeight(.medium)
+                                if let available = resets.available { Text("\(available) available") }
+                                if let usable = resets.usableNow { Text("\(usable) applicable at last update") }
+                            }.foregroundStyle(.secondary)
+                        }
+                        Text("Updated \(DisplayTime.absolute(reading.fetchedAt))").foregroundStyle(.secondary)
+                    } else {
+                        Text("Usage will appear after a successful account refresh.").foregroundStyle(.secondary)
+                    }
                 }
+                .font(.system(size: 10))
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
             }
         }
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        .padding(.horizontal, 20).padding(.vertical, 13)
+    }
+
+    private func compactMeter(_ period: WindowPeriod) -> some View {
+        let window = account.reading?.windows.first { $0.isOverall && $0.period == period }
+        return UsageMeter(window: window, now: now, historical: historical)
+            .frame(width: 118, alignment: .leading)
     }
 }
 
 @MainActor
-struct WindowRow: View {
-    let window: UsageWindow
+struct UsageMeter: View {
+    let window: UsageWindow?
     let now: Date
     let historical: Bool
-    private var percent: String {
-        window.usedPercent.map { String(format: "%.1f%% USED", $0) } ?? "Not reported"
+    private var color: Color {
+        if historical { return .secondary }
+        guard let used = window?.usedPercent else { return .secondary }
+        return used >= 100 ? .red : used >= 80 ? .orange : .accentColor
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(window.label).font(.subheadline)
-                Spacer()
-                Text(percent).font(.caption.monospacedDigit().bold())
-                    .foregroundStyle(window.usedPercent == 100 ? Color.red : Color.primary)
-            }
-            if let used = window.usedPercent {
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.secondary.opacity(0.15))
-                        Capsule()
-                            .fill(historical || window.resetPassed(at: now) ? Color.secondary : used == 100 ? Color.red : Color.accentColor)
-                            .frame(width: geometry.size.width * used / 100)
+        VStack(alignment: .leading, spacing: 5) {
+            Text(window?.usedPercent.map { String(format: "%.0f%%", $0) } ?? "—")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .monospacedDigit().foregroundStyle(window?.usedPercent == 100 ? .red : .primary)
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.13))
+                    if let used = window?.usedPercent {
+                        Capsule().fill(color).frame(width: geometry.size.width * used / 100)
                     }
                 }
-                .frame(height: 6)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(window.label), \(percent)\(historical ? ", previous reading" : "")")
-            }
-            if let reset = window.resetAt {
-                Text(window.resetPassed(at: now) ? DisplayTime.countdown(to: reset, now: now) : "Resets \(DisplayTime.countdown(to: reset, now: now))")
-                Text(DisplayTime.absolute(reset))
-            } else {
-                Text("Reset not reported")
-            }
+            }.frame(height: 4)
+            Text(resetLabel).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
         }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
+        .help(window?.resetAt.map { "Resets \(DisplayTime.absolute($0))" } ?? "Reset not reported")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(window?.label ?? "Usage"), \(window?.usedPercent.map { String(format: "%.1f percent used", $0) } ?? "not reported")\(historical ? ", previous reading" : "")")
+    }
+    private var resetLabel: String {
+        guard let reset = window?.resetAt else { return "Not reported" }
+        if reset <= now { return "Refresh needed" }
+        return "Resets \(DisplayTime.countdown(to: reset, now: now))"
     }
 }
 #else
